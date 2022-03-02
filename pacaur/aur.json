@@ -1,0 +1,24 @@
+{
+    "version":5,
+    "type":"search",
+    "resultcount":14,
+    "results":
+    [
+        {
+            "ID":510298,
+            "Name":"libretro-pcsx-rearmed-git",
+            "PackageBaseID":97621,
+            "PackageBase":"libretro-pcsx-rearmed-git",
+            "Version":"1358.c6e7ce9-1",
+            "Description":"libretro implementation of PCSX ReARMed. (PlayStation)",
+            "URL":"https:\/\/github.com\/libretro\/pcsx_rearmed",
+            "NumVotes":12,
+            "Popularity":0.000143,
+            "OutOfDate":null,
+            "Maintainer":"cecton",
+            "FirstSubmitted":1439583474,
+            "LastModified":1526144983,
+            "URLPath":"\/cgit\/aur.git\/snapshot\/libretro-pcsx-rearmed-git.tar.gz"
+        }
+    ]
+}
