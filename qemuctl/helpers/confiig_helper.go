@@ -1,4 +1,4 @@
-package qemuctl
+package qemuctl_helpers
 
 import (
 	"bufio"
@@ -50,6 +50,109 @@ func NewConfigData() (configData *ConfigurationData) {
 		SSHLocalPort: -1,
 		CPUs:         1,
 	}
+}
+
+func (cd *ConfigurationData) appendQemuArg(argsSlice []string, argKey string, argValue string) (newSlice []string) {
+	return append(argsSlice, []string{argKey, argValue}...)
+}
+
+func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, err error) {
+	/* Config specific */
+	var machineSpec string
+	var netSpec string
+
+	/* VNC Spec parser */
+	var vncRegex regexp.Regexp = *regexp.MustCompile(`[0-9\.]+:\d+`)
+
+	/* Initialize qemuArgs */
+	qemuArgs = append(qemuArgs, qemuPath)
+
+	/* Do the config stuff */
+	if cd.EnableKVM {
+		qemuArgs = append(qemuArgs, "-enable-kvm")
+	}
+
+	// -- Machine spec (type and accel)
+	{
+		machineSpec = fmt.Sprintf("type=%s", cd.MachineType)
+		if len(cd.AccelType) > 0 {
+			machineSpec = fmt.Sprintf("%s,accel=%s", machineSpec, cd.AccelType)
+		}
+
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-machine", machineSpec)
+	}
+
+	// -- Machine Name
+	if len(cd.MachineName) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-name", cd.MachineName)
+	}
+
+	// -- Memory
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-m", cd.Memory)
+
+	// -- cpus
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-smp", fmt.Sprintf("%d", cd.CPUs))
+
+	// -- CDROM
+	if len(cd.ISOCDrom) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-cdrom", cd.ISOCDrom)
+	}
+
+	// -- VGA
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-vga", cd.VGAType)
+
+	// -- Display
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-display", cd.DisplaySpec)
+
+	// VNC ?
+	if len(cd.VNCConfig) > 0 {
+		// Is it in the format "xxx.xxx.xxx.xxx:ddd" ?
+		if vncRegex.Match([]byte(cd.VNCConfig)) {
+			qemuArgs = cd.appendQemuArg(qemuArgs, "-vnc", cd.VNCConfig)
+		} else {
+			qemuArgs = cd.appendQemuArg(qemuArgs, "-vnc", fmt.Sprintf("127.0.0.1:%s", cd.VNCConfig))
+		}
+	}
+
+	// -- Bios file
+	if len(cd.BiosFile) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-bios", cd.BiosFile)
+	}
+
+	// -- Boot menu & Boot order (exclusive)
+	if cd.EnableBootMenu {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-boot", "menu=on")
+	} else if len(cd.BootOrder) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-boot", "order="+cd.BootOrder)
+	}
+
+	// -- Background?
+	if cd.RunAsDaemon {
+		qemuArgs = append(qemuArgs, "-daemonize")
+	}
+
+	// -- Network spec
+	{
+		netSpec = "user,model=virtio-net-pci"
+		if len(cd.NetIPSubnet) > 0 {
+			netSpec = fmt.Sprintf("%s,net=%s", netSpec, cd.NetIPSubnet)
+		}
+
+		if len(cd.NetID) > 0 {
+			netSpec = fmt.Sprintf("%s,id=%s", netSpec, cd.NetID)
+		}
+
+		if cd.SSHLocalPort > 0 {
+			netSpec = fmt.Sprintf("%s,hostfwd=tcp::%d-:22", netSpec, cd.SSHLocalPort)
+		}
+
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-nic", netSpec)
+	}
+
+	// -- Finally, add hard disk info
+	qemuArgs = append(qemuArgs, cd.HardDiskFile)
+
+	return qemuArgs, nil
 }
 
 /* ConfigurationHandler implementation */

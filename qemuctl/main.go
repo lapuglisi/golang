@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"luizpuglisi.com/qemuctl/qemuctl"
+	qemuctl "luizpuglisi.com/qemuctl/handlers"
 )
 
 func main() {
