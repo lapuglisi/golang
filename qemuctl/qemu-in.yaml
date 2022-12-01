@@ -1,0 +1,32 @@
+machine:
+  enableKVM: true
+  name: "serominers"
+  type: "q35"
+  accel: "hvf"
+
+vncListen: "2"
+
+runAsDaemon: false
+
+memory: 4G
+cpus: 4
+
+net:
+  netId: "mynet0"
+  ipSubnet: "192.120.100.0/24"
+
+ssh:
+  localPort: 4022
+
+disks:
+  hardDisk: "/path/to/harddisk.img"
+  cdrom: "/path/to/cdrom.iso"
+
+display:
+  vgaType: "virtio"
+  displaySpec: default
+
+boot:
+  biosFile: "/path/to/bios.file"
+  enableBootMenu: false
+  bootOrder: "cdan"

@@ -3,32 +3,45 @@ package qemuctl_helpers
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"regexp"
-	"strconv"
-	"strings"
+
+	"gopkg.in/yaml.v2"
 )
 
 // ConfigurationData holds the power of the serominers
 type ConfigurationData struct {
-	EnableKVM      bool
-	MachineName    string
-	MachineType    string
-	VNCConfig      string
-	RunAsDaemon    bool
-	Memory         string
-	CPUs           int64
-	NetID          string
-	NetIPSubnet    string
-	SSHLocalPort   int64
-	HardDiskFile   string
-	ISOCDrom       string
-	VGAType        string
-	DisplaySpec    string
-	BiosFile       string
-	EnableBootMenu bool
-	BootOrder      string
-	AccelType      string
+	Machine struct {
+		EnableKVM   bool   `yaml:"enableKVM"`
+		MachineName string `yaml:"name"`
+		MachineType string `yaml:"type"`
+		AccelType   string `yaml:"accel"`
+	} `yaml:"machine"`
+	VNCConfig   string `yaml:"vncListen"`
+	RunAsDaemon bool   `yaml:"runAsDaemon"`
+	Memory      string `yaml:"memory"`
+	CPUs        int64  `yaml:"cpus"`
+	Net         struct {
+		NetID    string `yaml:"netId"`
+		IPSubnet string `yaml:"ipSubnet"`
+	} `yaml:"net"`
+	SSH struct {
+		LocalPort int `yaml:"localPort"`
+	} `yaml:"ssh"`
+	Disks struct {
+		HardDisk string `yaml:"hardDisk"`
+		ISOCDrom string `yaml:"cdrom"`
+	} `yaml:"disks"`
+	Display struct {
+		VGAType     string `yaml:"vgaType"`
+		DisplaySpec string `yaml:"displaySpec"`
+	} `yaml:"display"`
+	Boot struct {
+		BiosFile       string `yaml:"biosFile"`
+		EnableBootMenu bool   `yaml:"enableBootMenu"`
+		BootOrder      string `yaml:"bootOrder"`
+	} `yaml:"boot"`
 }
 
 // ConfigurationHandler is one hell of a seroclockers
@@ -41,15 +54,7 @@ func init() {
 
 /* ConfigurationData implementation */
 func NewConfigData() (configData *ConfigurationData) {
-	return &ConfigurationData{
-		EnableKVM:    true,
-		MachineType:  "q35",
-		AccelType:    "hvf",
-		VGAType:      "virtio",
-		DisplaySpec:  "default",
-		SSHLocalPort: -1,
-		CPUs:         1,
-	}
+	return &ConfigurationData{}
 }
 
 func (cd *ConfigurationData) appendQemuArg(argsSlice []string, argKey string, argValue string) (newSlice []string) {
@@ -68,23 +73,23 @@ func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, er
 	qemuArgs = append(qemuArgs, qemuPath)
 
 	/* Do the config stuff */
-	if cd.EnableKVM {
+	if cd.Machine.EnableKVM {
 		qemuArgs = append(qemuArgs, "-enable-kvm")
 	}
 
 	// -- Machine spec (type and accel)
 	{
-		machineSpec = fmt.Sprintf("type=%s", cd.MachineType)
-		if len(cd.AccelType) > 0 {
-			machineSpec = fmt.Sprintf("%s,accel=%s", machineSpec, cd.AccelType)
+		machineSpec = fmt.Sprintf("type=%s", cd.Machine.MachineType)
+		if len(cd.Machine.AccelType) > 0 {
+			machineSpec = fmt.Sprintf("%s,accel=%s", machineSpec, cd.Machine.AccelType)
 		}
 
 		qemuArgs = cd.appendQemuArg(qemuArgs, "-machine", machineSpec)
 	}
 
 	// -- Machine Name
-	if len(cd.MachineName) > 0 {
-		qemuArgs = cd.appendQemuArg(qemuArgs, "-name", cd.MachineName)
+	if len(cd.Machine.MachineName) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-name", cd.Machine.MachineName)
 	}
 
 	// -- Memory
@@ -94,15 +99,15 @@ func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, er
 	qemuArgs = cd.appendQemuArg(qemuArgs, "-smp", fmt.Sprintf("%d", cd.CPUs))
 
 	// -- CDROM
-	if len(cd.ISOCDrom) > 0 {
-		qemuArgs = cd.appendQemuArg(qemuArgs, "-cdrom", cd.ISOCDrom)
+	if len(cd.Disks.ISOCDrom) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-cdrom", cd.Disks.ISOCDrom)
 	}
 
 	// -- VGA
-	qemuArgs = cd.appendQemuArg(qemuArgs, "-vga", cd.VGAType)
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-vga", cd.Display.VGAType)
 
 	// -- Display
-	qemuArgs = cd.appendQemuArg(qemuArgs, "-display", cd.DisplaySpec)
+	qemuArgs = cd.appendQemuArg(qemuArgs, "-display", cd.Display.DisplaySpec)
 
 	// VNC ?
 	if len(cd.VNCConfig) > 0 {
@@ -115,15 +120,15 @@ func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, er
 	}
 
 	// -- Bios file
-	if len(cd.BiosFile) > 0 {
-		qemuArgs = cd.appendQemuArg(qemuArgs, "-bios", cd.BiosFile)
+	if len(cd.Boot.BiosFile) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-bios", cd.Boot.BiosFile)
 	}
 
 	// -- Boot menu & Boot order (exclusive)
-	if cd.EnableBootMenu {
+	if cd.Boot.EnableBootMenu {
 		qemuArgs = cd.appendQemuArg(qemuArgs, "-boot", "menu=on")
-	} else if len(cd.BootOrder) > 0 {
-		qemuArgs = cd.appendQemuArg(qemuArgs, "-boot", "order="+cd.BootOrder)
+	} else if len(cd.Boot.BootOrder) > 0 {
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-boot", "order="+cd.Boot.BootOrder)
 	}
 
 	// -- Background?
@@ -134,23 +139,23 @@ func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, er
 	// -- Network spec
 	{
 		netSpec = "user,model=virtio-net-pci"
-		if len(cd.NetIPSubnet) > 0 {
-			netSpec = fmt.Sprintf("%s,net=%s", netSpec, cd.NetIPSubnet)
+		if len(cd.Net.IPSubnet) > 0 {
+			netSpec = fmt.Sprintf("%s,net=%s", netSpec, cd.Net.IPSubnet)
 		}
 
-		if len(cd.NetID) > 0 {
-			netSpec = fmt.Sprintf("%s,id=%s", netSpec, cd.NetID)
+		if len(cd.Net.NetID) > 0 {
+			netSpec = fmt.Sprintf("%s,id=%s", netSpec, cd.Net.NetID)
 		}
 
-		if cd.SSHLocalPort > 0 {
-			netSpec = fmt.Sprintf("%s,hostfwd=tcp::%d-:22", netSpec, cd.SSHLocalPort)
+		if cd.SSH.LocalPort > 0 {
+			netSpec = fmt.Sprintf("%s,hostfwd=tcp::%d-:22", netSpec, cd.SSH.LocalPort)
 		}
 
 		qemuArgs = cd.appendQemuArg(qemuArgs, "-nic", netSpec)
 	}
 
 	// -- Finally, add hard disk info
-	qemuArgs = append(qemuArgs, cd.HardDiskFile)
+	qemuArgs = append(qemuArgs, cd.Disks.HardDisk)
 
 	return qemuArgs, nil
 }
@@ -162,134 +167,9 @@ func NewConfigHandler(configFile string) (configHandler *ConfigurationHandler) {
 	}
 }
 
-func (ch *ConfigurationHandler) parseConfigEntry(configEntry string, configData *ConfigurationData) (err error) {
-	var equalPos int = -1
-	var configKey string
-	var configValue string
-
-	var commentPattern regexp.Regexp = *regexp.MustCompile(`^\s*#`)
-	var entryBytes []byte = []byte(configEntry)
-
-	if commentPattern.Match(entryBytes) {
-		fmt.Printf("[info] parseConfigEntry: skipping comment '%s'\n", configEntry)
-		return nil
-	}
-
-	equalPos = strings.IndexByte(configEntry, '=')
-	if equalPos == -1 {
-		err = fmt.Errorf("invalid config entry: %s", configEntry)
-		return err
-	}
-
-	configKey = strings.TrimSpace(configEntry[0 : equalPos-1])
-	configValue = strings.TrimSpace(configEntry[equalPos+1:])
-
-	/*
-		fmt.Printf("[parseConfigEntry] configEntry is .... '%s'\n", configEntry)
-		fmt.Printf("[parseConfigEntry] configKey is ...... '%s'\n", configKey)
-		fmt.Printf("[parseConfigEntry] configValue is .... '%s'\n", configValue)
-	*/
-
-	err = nil
-	switch configKey {
-	case "name":
-		{
-			configData.MachineName = configValue
-			break
-		}
-	case "memory":
-		{
-			configData.Memory = configValue
-			break
-		}
-	case "cpus":
-		{
-			configData.CPUs, err = strconv.ParseInt(configValue, 10, 0)
-			break
-
-		}
-	case "disk":
-		{
-			configData.HardDiskFile = configValue
-			break
-		}
-	case "cdrom":
-		{
-			configData.ISOCDrom = configValue
-			break
-		}
-	case "vga":
-		{
-			configData.VGAType = configValue
-			break
-		}
-	case "vnclisten":
-		{
-			configData.VNCConfig = configValue
-			break
-		}
-	case "display":
-		{
-			configData.DisplaySpec = configValue
-			break
-		}
-	case "bios":
-		{
-			configData.BiosFile = configValue
-			break
-		}
-	case "boot_menu":
-		{
-			configData.EnableBootMenu, err = strconv.ParseBool(configValue)
-			break
-		}
-	case "boot_order":
-		{
-			configData.BootOrder = configValue
-			break
-		}
-	case "background":
-		{
-			configData.RunAsDaemon, err = strconv.ParseBool(configValue)
-			break
-		}
-	case "machine_type":
-		{
-			configData.MachineType = configValue
-			break
-		}
-	case "accel":
-		{
-			configData.AccelType = configValue
-			break
-		}
-	case "ip_subnet":
-		{
-			configData.NetIPSubnet = configValue
-			break
-		}
-	case "net_id":
-		{
-			configData.NetID = configValue
-			break
-		}
-	case "ssh_local_port":
-		{
-			configData.SSHLocalPort, err = strconv.ParseInt(configValue, 10, 0)
-			break
-		}
-
-	default:
-		{
-			err = fmt.Errorf("unknown config entry '%s'", configEntry)
-		}
-	}
-
-	return err
-}
-
 func (ch *ConfigurationHandler) ParseConfigFile() (configData *ConfigurationData, err error) {
-	var osErr error
+	var configBytes []byte = nil
+	var bufReader *bufio.Reader = nil
 
 	// Open file
 	fileHandle, osErr := os.OpenFile(ch.filePath, os.O_RDONLY, 0644)
@@ -300,21 +180,20 @@ func (ch *ConfigurationHandler) ParseConfigFile() (configData *ConfigurationData
 	defer fileHandle.Close()
 
 	// Read lines
-	bufScanner := bufio.NewReader(fileHandle)
+	bufReader = bufio.NewReader(fileHandle)
 
 	configData = NewConfigData()
 	osErr = nil
-	for osErr == nil {
-		lineBytes, _ /* isPrefix */, osErr := bufScanner.ReadLine()
-		if osErr != nil {
-			break
-		}
 
-		// Parse entry here
-		configEntry := string(lineBytes)
-		if err = ch.parseConfigEntry(configEntry, configData); err != nil {
-			fmt.Printf("[warning] parseConfigEntry: %s\n", err.Error())
-		}
+	configBytes, err = ioutil.ReadAll(bufReader)
+	if err != nil {
+		return nil, err
+	}
+
+	/* Now YAML the whole thing */
+	err = yaml.Unmarshal(configBytes, &configData)
+	if err != nil {
+		return nil, err
 	}
 
 	return configData, nil
