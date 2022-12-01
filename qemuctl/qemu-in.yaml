@@ -12,8 +12,14 @@ memory: 4G
 cpus: 4
 
 net:
-  netId: "mynet0"
+  netId: "seroprobers"
   ipSubnet: "192.120.100.0/24"
+  deviceType: "e1000"
+  portForwards:
+    - guestPort: 19950
+      hostPort: 19950
+    - guestPort: 19951
+      hostPort: 19951
 
 ssh:
   localPort: 4022

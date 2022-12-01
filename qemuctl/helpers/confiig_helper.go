@@ -11,6 +11,11 @@ import (
 )
 
 // ConfigurationData holds the power of the serominers
+type portForwards struct {
+	GuestPort int `yaml:"guestPort"`
+	HostPort  int `yaml:"hostPort"`
+}
+
 type ConfigurationData struct {
 	Machine struct {
 		EnableKVM   bool   `yaml:"enableKVM"`
@@ -23,8 +28,10 @@ type ConfigurationData struct {
 	Memory      string `yaml:"memory"`
 	CPUs        int64  `yaml:"cpus"`
 	Net         struct {
-		NetID    string `yaml:"netId"`
-		IPSubnet string `yaml:"ipSubnet"`
+		NetID        string         `yaml:"netId"`
+		IPSubnet     string         `yaml:"ipSubnet"`
+		DeviceType   string         `yaml:"deviceType"`
+		PortForwards []portForwards `yaml:"portForwards"`
 	} `yaml:"net"`
 	SSH struct {
 		LocalPort int `yaml:"localPort"`
@@ -54,7 +61,16 @@ func init() {
 
 /* ConfigurationData implementation */
 func NewConfigData() (configData *ConfigurationData) {
-	return &ConfigurationData{}
+	configData = &ConfigurationData{}
+
+	configData.Machine.MachineType = "q35"
+	configData.Machine.AccelType = "hvf"
+	configData.Machine.EnableKVM = true
+
+	configData.Net.DeviceType = "e1000"
+	configData.Net.NetID = "mynet0"
+
+	return configData
 }
 
 func (cd *ConfigurationData) appendQemuArg(argsSlice []string, argKey string, argValue string) (newSlice []string) {
@@ -138,20 +154,27 @@ func (cd *ConfigurationData) GetQemuArgs(qemuPath string) (qemuArgs []string, er
 
 	// -- Network spec
 	{
-		netSpec = "user,model=virtio-net-pci"
+		/* Configure network device */
+		netSpec = fmt.Sprintf("%s,netdev=%s", cd.Net.DeviceType, cd.Net.NetID)
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-device", netSpec)
+
+		/* Configure NIC */
+		netSpec = fmt.Sprintf("user,id=%s", cd.Net.NetID)
+
 		if len(cd.Net.IPSubnet) > 0 {
 			netSpec = fmt.Sprintf("%s,net=%s", netSpec, cd.Net.IPSubnet)
-		}
-
-		if len(cd.Net.NetID) > 0 {
-			netSpec = fmt.Sprintf("%s,id=%s", netSpec, cd.Net.NetID)
 		}
 
 		if cd.SSH.LocalPort > 0 {
 			netSpec = fmt.Sprintf("%s,hostfwd=tcp::%d-:22", netSpec, cd.SSH.LocalPort)
 		}
 
-		qemuArgs = cd.appendQemuArg(qemuArgs, "-nic", netSpec)
+		/* Port fowards come here */
+		for _, _value := range cd.Net.PortForwards {
+			netSpec = fmt.Sprintf("%s,hostfwd=tcp::%d-:%d", netSpec, _value.HostPort, _value.GuestPort)
+		}
+
+		qemuArgs = cd.appendQemuArg(qemuArgs, "-netdev", netSpec)
 	}
 
 	// -- Finally, add hard disk info

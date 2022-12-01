@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	helpers "luizpuglisi.com/qemuctl/helpers"
 )
@@ -37,9 +36,12 @@ func launchQemu(qemuBinary string, configData *helpers.ConfigurationData) (err e
 		return err
 	}
 
-	fmt.Println("[INFO] Executing QEMU with:")
-	fmt.Printf("qemu_path .......... %s\n", qemuPath)
-	fmt.Printf("qemu_args .......... %s\n", strings.Join(qemuArgs, " "))
+	/*
+		TODO: use the log feature
+		fmt.Println("[INFO] Executing QEMU with:")
+		fmt.Printf("qemu_path .......... %s\n", qemuPath)
+		fmt.Printf("qemu_args .......... %s\n", strings.Join(qemuArgs, " "))
+	*/
 
 	/* Actual execution of QEMU */
 	err = nil
