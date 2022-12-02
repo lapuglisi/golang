@@ -156,7 +156,7 @@ func (monitor *QemuMonitor) QueryStatus(result *QmpQueryStatusResult) (err error
 	}
 
 	/* Create QueryStatus command and send it */
-	log.Printf("[QueryStatus] create qeury-status command\n")
+	log.Printf("[QueryStatus] create query-status command\n")
 	qmpCommand := &QmpBasicCommand{
 		Execute: QmpQueryStatusCommand,
 	}
