@@ -1,4 +1,3 @@
-qemu-system-x86_64 --help
 QEMU emulator version 7.1.0
 Copyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers
 usage: qemu-system-x86_64 [options] [disk_image]
@@ -103,8 +102,26 @@ NOTE: Some architectures might enforce a specific granularity
                 in|out.buffer-length= length of buffer in microseconds
 -audiodev none,id=id,[,prop[=value][,...]]
                 dummy driver that discards all output
--audiodev coreaudio,id=id[,prop[=value][,...]]
+-audiodev alsa,id=id[,prop[=value][,...]]
+                in|out.dev= name of the audio device to use
+                in|out.period-length= length of period in microseconds
+                in|out.try-poll= attempt to use poll mode
+                threshold= threshold (in microseconds) when playback starts
+-audiodev oss,id=id[,prop[=value][,...]]
+                in|out.dev= path of the audio device to use
                 in|out.buffer-count= number of buffers
+                in|out.try-poll= attempt to use poll mode
+                try-mmap= try using memory mapped access
+                exclusive= open device in exclusive mode
+                dsp-policy= set timing policy (0..10), -1 to use fragment mode
+-audiodev pa,id=id[,prop[=value][,...]]
+                server= PulseAudio server address
+                in|out.name= source/sink device name
+                in|out.latency= desired latency in microseconds
+-audiodev sdl,id=id[,prop[=value][,...]]
+                in|out.buffer-count= number of buffers
+-audiodev spice,id=id[,prop[=value][,...]]
+-audiodev dbus,id=id[,prop[=value][,...]]
 -audiodev wav,id=id[,prop[=value][,...]]
                 path= path of wav file to record
 -device driver[,prop[=value][,...]]
@@ -174,15 +191,40 @@ USB convenience options:
 -usbdevice name add the host or guest USB device 'name'
 
 Display options:
+-display spice-app[,gl=on|off]
+-display sdl[,gl=on|core|es|off][,grab-mod=<mod>][,show-cursor=on|off]
+            [,window-close=on|off]
+-display gtk[,full-screen=on|off][,gl=on|off][,grab-on-hover=on|off]
+            [,show-tabs=on|off][,show-cursor=on|off][,window-close=on|off]
 -display vnc=<display>[,<optargs>]
 -display curses[,charset=<encoding>]
--display cocoa[,full-grab=on|off][,swap-opt-cmd=on|off]
--display cocoa[,show-cursor=on|off][,left-command-key=on|off]
+-display egl-headless[,rendernode=<file>]
+-display dbus[,addr=<dbusaddr>]
+             [,gl=on|core|es|off][,rendernode=<file>]
 -display none
                 select display backend type
                 The default display is equivalent to
-                "-display cocoa"
+                "-display gtk"
 -nographic      disable graphical output and redirect serial I/Os to console
+-spice [port=port][,tls-port=secured-port][,x509-dir=<dir>]
+       [,x509-key-file=<file>][,x509-key-password=<file>]
+       [,x509-cert-file=<file>][,x509-cacert-file=<file>]
+       [,x509-dh-key-file=<file>][,addr=addr]
+       [,ipv4=on|off][,ipv6=on|off][,unix=on|off]
+       [,tls-ciphers=<list>]
+       [,tls-channel=[main|display|cursor|inputs|record|playback]]
+       [,plaintext-channel=[main|display|cursor|inputs|record|playback]]
+       [,sasl=on|off][,disable-ticketing=on|off]
+       [,password=<string>][,password-secret=<secret-id>]
+       [,image-compression=[auto_glz|auto_lz|quic|glz|lz|off]]
+       [,jpeg-wan-compression=[auto|never|always]]
+       [,zlib-glz-wan-compression=[auto|never|always]]
+       [,streaming-video=[off|all|filter]][,disable-copy-paste=on|off]
+       [,disable-agent-file-xfer=on|off][,agent-mouse=[on|off]]
+       [,playback-compression=[on|off]][,seamless-migration=[on|off]]
+       [,gl=[on|off]][,rendernode=<file>]
+   enable spice
+   at least one of {port, tls-port} is mandatory
 -portrait       rotate graphical output 90 deg left (only PXA LCD)
 -rotate <deg>   rotate graphical output some deg left (only PXA LCD)
 -vga [std|cirrus|vmware|qxl|xenfb|tcx|cg3|virtio|none]
@@ -237,11 +279,11 @@ Network options:
          [,poll-us=n]
                 configure a host TAP network backend with ID 'str'
                 connected to a bridge (default=br0)
-                use network scripts 'file' (default=/usr/local/Cellar/qemu/7.1.0/etc/qemu-ifup)
-                to configure it and 'dfile' (default=/usr/local/Cellar/qemu/7.1.0/etc/qemu-ifdown)
+                use network scripts 'file' (default=/etc/qemu-ifup)
+                to configure it and 'dfile' (default=/etc/qemu-ifdown)
                 to deconfigure it
                 use '[down]script=no' to disable script execution
-                use network helper 'helper' (default=/usr/local/Cellar/qemu/7.1.0/libexec/qemu-bridge-helper) to
+                use network helper 'helper' (default=/usr/lib/qemu/qemu-bridge-helper) to
                 configure it
                 use 'fd=h' to connect to an already opened TAP interface
                 use 'fds=x:y:...:z' to connect to already opened multiqueue capable TAP interfaces
@@ -260,7 +302,32 @@ Network options:
 -netdev bridge,id=str[,br=bridge][,helper=helper]
                 configure a host TAP network backend with ID 'str' that is
                 connected to a bridge (default=br0)
-                using the program 'helper (default=/usr/local/Cellar/qemu/7.1.0/libexec/qemu-bridge-helper)
+                using the program 'helper (default=/usr/lib/qemu/qemu-bridge-helper)
+-netdev l2tpv3,id=str,src=srcaddr,dst=dstaddr[,srcport=srcport][,dstport=dstport]
+         [,rxsession=rxsession],txsession=txsession[,ipv6=on|off][,udp=on|off]
+         [,cookie64=on|off][,counter][,pincounter][,txcookie=txcookie]
+         [,rxcookie=rxcookie][,offset=offset]
+                configure a network backend with ID 'str' connected to
+                an Ethernet over L2TPv3 pseudowire.
+                Linux kernel 3.3+ as well as most routers can talk
+                L2TPv3. This transport allows connecting a VM to a VM,
+                VM to a router and even VM to Host. It is a nearly-universal
+                standard (RFC3931). Note - this implementation uses static
+                pre-configured tunnels (same as the Linux kernel).
+                use 'src=' to specify source address
+                use 'dst=' to specify destination address
+                use 'udp=on' to specify udp encapsulation
+                use 'srcport=' to specify source udp port
+                use 'dstport=' to specify destination udp port
+                use 'ipv6=on' to force v6
+                L2TPv3 uses cookies to prevent misconfiguration as
+                well as a weak security measure
+                use 'rxcookie=0x012345678' to specify a rxcookie
+                use 'txcookie=0x012345678' to specify a txcookie
+                use 'cookie64=on' to set cookie size to 64 bit, otherwise 32
+                use 'counter=off' to force a 'cut-down' L2TPv3 with no counter
+                use 'pincounter=on' to work around broken counter handling in peer
+                use 'offset=X' to add an extra offset between header and data
 -netdev socket,id=str[,fd=h][,listen=[host]:port][,connect=host:port]
                 configure a network backend to connect to another network
                 using a socket connection
@@ -277,26 +344,11 @@ Network options:
                 ownership and permissions for communication port.
 -netdev vhost-user,id=str,chardev=dev[,vhostforce=on|off]
                 configure a vhost-user network, backed by a chardev 'dev'
--netdev vmnet-host,id=str[,isolated=on|off][,net-uuid=uuid]
-         [,start-address=addr,end-address=addr,subnet-mask=mask]
-                configure a vmnet network backend in host mode with ID 'str',
-                isolate this interface from others with 'isolated',
-                configure the address range and choose a subnet mask,
-                specify network UUID 'uuid' to disable DHCP and interact with
-                vmnet-host interfaces within this isolated network
--netdev vmnet-shared,id=str[,isolated=on|off][,nat66-prefix=addr]
-         [,start-address=addr,end-address=addr,subnet-mask=mask]
-                configure a vmnet network backend in shared mode with ID 'str',
-                configure the address range and choose a subnet mask,
-                set IPv6 ULA prefix (of length 64) to use for internal network,
-                isolate this interface from others with 'isolated'
--netdev vmnet-bridged,id=str,ifname=name[,isolated=on|off]
-                configure a vmnet network backend in bridged mode with ID 'str',
-                use 'ifname=name' to select a physical network interface to be bridged,
-                isolate this interface from others with 'isolated'
+-netdev vhost-vdpa,id=str,vhostdev=/path/to/dev
+                configure a vhost-vdpa network,Establish a vhost-vdpa netdev
 -netdev hubport,id=str,hubid=n[,netdev=nd]
                 configure a hub port on the hub with ID 'n'
--nic [tap|bridge|user|vde|vhost-user|vmnet-host|vmnet-shared|vmnet-bridged|socket][,option][,...][mac=macaddr]
+-nic [tap|bridge|user|l2tpv3|vde|vhost-user|socket][,option][,...][mac=macaddr]
                 initialize an on-board / default host NIC (using MAC address
                 macaddr) and connect it to the given host network backend
 -nic none       use it alone to have zero network devices (the default is to
@@ -304,7 +356,7 @@ Network options:
 -net nic[,macaddr=mac][,model=type][,name=str][,addr=str][,vectors=v]
                 configure or create an on-board (or machine default) NIC and
                 connect it to hub 0 (please use -nic unless you need a hub)
--net [user|tap|bridge|vde|vmnet-host|vmnet-shared|vmnet-bridged|socket][,option][,option][,...]
+-net [user|tap|bridge|vde|socket][,option][,option][,...]
                 old way to initialize a host network interface
                 (use the -netdev option if possible instead)
 
@@ -327,6 +379,13 @@ Character device options:
 -chardev pipe,id=id,path=path[,mux=on|off][,logfile=PATH][,logappend=on|off]
 -chardev pty,id=id[,mux=on|off][,logfile=PATH][,logappend=on|off]
 -chardev stdio,id=id[,mux=on|off][,signal=on|off][,logfile=PATH][,logappend=on|off]
+-chardev braille,id=id[,mux=on|off][,logfile=PATH][,logappend=on|off]
+-chardev serial,id=id,path=path[,mux=on|off][,logfile=PATH][,logappend=on|off]
+-chardev tty,id=id,path=path[,mux=on|off][,logfile=PATH][,logappend=on|off]
+-chardev parallel,id=id,path=path[,mux=on|off][,logfile=PATH][,logappend=on|off]
+-chardev parport,id=id,path=path[,mux=on|off][,logfile=PATH][,logappend=on|off]
+-chardev spicevmc,id=id,name=name[,debug=debug][,logfile=PATH][,logappend=on|off]
+-chardev spiceport,id=id,name=name[,debug=debug][,logfile=PATH][,logappend=on|off]
 
 TPM device options:
 -tpmdev passthrough,id=id[,path=path][,cancel-path=path]
@@ -473,3 +532,6 @@ ctrl-alt-n      switch to virtual console 'n'
 ctrl-alt        toggle mouse and keyboard grab
 
 When using -nographic, press 'ctrl-a h' to get some help.
+
+See <https://qemu.org/contribute/report-a-bug> for how to report bugs.
+More information on the QEMU project at <https://qemu.org>.
