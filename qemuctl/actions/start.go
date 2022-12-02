@@ -94,7 +94,7 @@ func (action *StartAction) handleStart() (err error) {
 	}
 
 	/* Get QemuCommand instance */
-	qemu = qemuctl_qemu.NewQemuCommand(qemuBinary, qemuArgs, configData.RunAsDaemon)
+	qemu = qemuctl_qemu.NewQemuCommand(qemuPath, qemuArgs, configData.RunAsDaemon)
 	err = qemu.Launch()
 	if err != nil {
 		machine.UpdateStatus(runtime.MachineStatusDegraded)
