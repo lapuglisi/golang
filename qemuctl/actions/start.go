@@ -3,10 +3,10 @@ package qemuctl_actions
 import (
 	"flag"
 	"fmt"
-	"os"
 	"os/exec"
 
 	helpers "luizpuglisi.com/qemuctl/helpers"
+	qemuctl_qemu "luizpuglisi.com/qemuctl/qemu"
 	runtime "luizpuglisi.com/qemuctl/runtime"
 )
 
@@ -55,75 +55,52 @@ func (action *StartAction) Run(arguments []string) (err error) {
 	return nil
 }
 
-func (action *StartAction) launchQemu(qemuBinary string, configData *helpers.ConfigurationData) (err error) {
-
-	var qemuArgs []string = nil
+func (action *StartAction) handleStart() (err error) {
+	var configData *helpers.ConfigurationData = nil
+	var qemuBinary string = action.qemuBinary
 	var qemuPath string
+	var qemuArgs []string
+	var qemu *qemuctl_qemu.QemuCommand
+	var machine *runtime.Machine
 
-	var procAttrs *os.ProcAttr = nil
+	err = nil
 
+	machine = runtime.NewMachine(action.machineName)
+
+	/* Check machine status */
+	if machine.Exists() {
+		if machine.IsStarted() {
+			return fmt.Errorf("machine '%s' is already started", action.machineName)
+		}
+	}
+
+	configHandle := helpers.NewConfigHandler(action.configFile)
+	configData, err = configHandle.ParseConfigFile()
+	if err != nil {
+		machine.UpdateStatus(runtime.MachineStatusDegraded)
+		return err
+	}
+
+	// Get qemu real path
 	qemuPath, err = exec.LookPath(qemuBinary)
 	if err != nil {
 		return err
 	}
 
+	// Now that we have configData, launch qemu
 	qemuArgs, err = configData.GetQemuArgs(qemuPath, action.machineName)
 	if err != nil {
 		return err
 	}
 
-	// TODO: use the log feature
-	/*
-		fmt.Println("[INFO] Executing QEMU with:")
-		fmt.Printf("qemu_path .......... %s\n", qemuPath)
-		fmt.Printf("qemu_args .......... %s\n", strings.Join(qemuArgs, " "))
-		return nil
-	*/
-
-	/* Actual execution of QEMU */
-	err = nil
-	procAttrs = &os.ProcAttr{
-		Dir: os.ExpandEnv("$HOME"),
-		Env: os.Environ(),
-		Files: []*os.File{
-			os.Stdin,
-			os.Stdout,
-			os.Stderr,
-		},
-		Sys: nil,
-	}
-
-	procHandle, err := os.StartProcess(qemuPath, qemuArgs, procAttrs)
-	if err == nil {
-		if configData.RunAsDaemon {
-			err = procHandle.Release()
-		}
-	}
-
-	return err
-}
-
-func (action *StartAction) handleStart() (err error) {
-	var configData *helpers.ConfigurationData = nil
-	var qemuBinary string = action.qemuBinary
-
-	err = nil
-
-	configHandle := helpers.NewConfigHandler(action.configFile)
-
-	configData, err = configHandle.ParseConfigFile()
+	/* Get QemuCommand instance */
+	qemu = qemuctl_qemu.NewQemuCommand(qemuBinary, qemuArgs, configData.RunAsDaemon)
+	err = qemu.Launch()
 	if err != nil {
-		runtime.UpdateMachineStatus(action.machineName, "error")
+		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
 	}
 
-	// Now that we have configData, launch qemu
-	err = action.launchQemu(qemuBinary, configData)
-	if err != nil {
-		runtime.UpdateMachineStatus(action.machineName, "error")
-		return err
-	}
-
-	runtime.UpdateMachineStatus(action.machineName, "running")
+	machine.UpdateStatus(runtime.MachineStatusStarted)
 	return nil
 }

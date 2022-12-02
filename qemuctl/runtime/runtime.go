@@ -10,18 +10,16 @@ func init() {
 
 }
 
-func GetUserDataDir() string {
-	return fmt.Sprintf("%s/.qemuctl", os.ExpandEnv("$HOME"))
-}
+const (
+	RuntimeBaseDirName string = ".qemuctl"
+)
 
-func GetMachineDirectory(machineName string) string {
-	return fmt.Sprintf("%s/machines/%s", GetUserDataDir(), machineName)
+func GetUserDataDir() string {
+	return fmt.Sprintf("%s/%s", os.ExpandEnv("$HOME"), RuntimeBaseDirName)
 }
 
 func SetupRuntimeData() (err error) {
 	var qemuctlDir string = GetUserDataDir()
-
-	log.Printf("checking for directory '%s'\n", qemuctlDir)
 
 	/* Create directory {userHome}/.qemuctl if it does not exits */
 	_, err = os.Stat(qemuctlDir)
@@ -35,20 +33,17 @@ func SetupRuntimeData() (err error) {
 		}
 	}
 
+	/* Setup log */
+	logFilePath := fmt.Sprintf("%s/qemuctl.log", qemuctlDir)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0744)
+	if err != nil {
+		return err
+	}
+
+	log.SetOutput(logFile)
+	/**************************/
+
+	log.Println("qemuctl: setup runtime done")
+
 	return nil
-}
-
-func MachineExists(machineName string) bool {
-	var err error
-	var machineDir string = GetMachineDirectory(machineName)
-
-	/* Check if machine exists */
-	_, err = os.Stat(machineDir)
-	return !os.IsNotExist(err)
-}
-
-func UpdateMachineStatus(machineName string, status string) error {
-	var statusFile string = fmt.Sprintf("%s/status", GetMachineDirectory(machineName))
-
-	return os.WriteFile(statusFile, []byte(status), os.ModePerm)
 }

@@ -1,4 +1,4 @@
-package qemuctl_monitor
+package qemuctl_qemu
 
 import (
 	"fmt"
@@ -12,15 +12,18 @@ func init() {
 }
 
 const (
+	QemuMonitorSocketFileName  string = "qemu-monitor.sock"
 	QemuMonitorShutdownCommand string = "system_powerdown"
+	QemuMonitorQuitCommand     string = "quit"
 )
 
 func ShutdownMachine(machineName string) error {
-	var monitorSocket string = fmt.Sprintf("%s/qemu-monitor.sock",
-		runtime.GetMachineDirectory(machineName))
+	var machine *runtime.Machine = runtime.NewMachine(machineName)
+	var monitorSocket string = fmt.Sprintf("%s/%s",
+		machine.RuntimeDirectory, QemuMonitorSocketFileName)
 
-	if !runtime.MachineExists(machineName) {
-		return fmt.Errorf("machine %s dos not exist", machineName)
+	if !machine.Exists() {
+		return fmt.Errorf("machine '%s' does not exist", machineName)
 	}
 
 	cn, err := net.Dial("unix", monitorSocket)
