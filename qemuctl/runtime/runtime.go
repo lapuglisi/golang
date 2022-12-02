@@ -43,6 +43,12 @@ func SetupRuntimeData() (err error) {
 	log.SetOutput(logFile)
 	/**************************/
 
+	/* Setup Machines Runtime */
+	machinesDir := fmt.Sprintf("%s/machines", qemuctlDir)
+	if _, err = os.Stat(machinesDir); os.IsNotExist(err) {
+		os.Mkdir(machinesDir, 0744)
+	}
+
 	log.Println("qemuctl: setup runtime done")
 
 	return nil

@@ -1,6 +1,7 @@
 package qemuctl_runtime
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -53,7 +54,11 @@ func NewMachine(machineName string) *Machine {
 }
 
 func (m *Machine) Exists() bool {
-	fileInfo, _ := os.Stat(m.RuntimeDirectory)
+	fileInfo, err := os.Stat(m.RuntimeDirectory)
+	if os.IsNotExist(err) {
+		return false
+	}
+
 	return fileInfo.IsDir()
 }
 
@@ -75,6 +80,15 @@ func (m *Machine) IsUnknown() bool {
 
 func (m *Machine) UpdateStatus(status string) (err error) {
 	var statusFile string = fmt.Sprintf("%s/%s", m.RuntimeDirectory, MachineStatusFileName)
+	var fileHandle *os.File
+	var fileData *bytes.Buffer
+
+	log.Printf("[UpdateStatus] opening file '%s'\n", statusFile)
+	fileHandle, err = os.OpenFile(statusFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer fileHandle.Close()
 
 	switch status {
 	case MachineStatusDegraded:
@@ -82,10 +96,11 @@ func (m *Machine) UpdateStatus(status string) (err error) {
 	case MachineStatusStopped:
 	case MachineStatusUnknown:
 		{
-			err = os.WriteFile(statusFile, []byte(status), os.ModePerm)
+			fileData = bytes.NewBufferString(status)
+			_, err = fileHandle.Write(fileData.Bytes())
+			fileHandle.Sync()
 			break
 		}
-
 	default:
 		{
 			err = fmt.Errorf("invalid machine status '%s'", status)
@@ -93,4 +108,8 @@ func (m *Machine) UpdateStatus(status string) (err error) {
 	}
 
 	return err
+}
+
+func (m *Machine) CreateRuntime() {
+	os.Mkdir(m.RuntimeDirectory, 0744)
 }

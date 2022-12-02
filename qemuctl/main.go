@@ -39,17 +39,24 @@ func main() {
 		{
 			action := actions.StartAction{}
 			err = action.Run(execArgs)
+			break
 		}
 
 	case "stop":
 		{
 			action := actions.StopAction{}
 			err = action.Run(execArgs)
+			break
 		}
-
+	case "status":
+		{
+			action := actions.StatusAction{}
+			err = action.Run(execArgs)
+			break
+		}
 	default:
 		{
-			fmt.Printf("[error] Unknown action '%s'.", action)
+			fmt.Printf("[error] Unknown action '%s'\n", action)
 		}
 	}
 

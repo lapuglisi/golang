@@ -1,10 +1,9 @@
 package qemuctl_actions
 
 import (
-	"flag"
 	"fmt"
 
-	monitor "luizpuglisi.com/qemuctl/qemu"
+	qemuctl_qemu "luizpuglisi.com/qemuctl/qemu"
 	runtime "luizpuglisi.com/qemuctl/runtime"
 )
 
@@ -17,25 +16,22 @@ type StopAction struct {
 }
 
 func (action *StopAction) Run(arguments []string) (err error) {
-	var flagSet *flag.FlagSet = flag.NewFlagSet("qemuctl stop", flag.ExitOnError)
 	var machine *runtime.Machine
 
-	flagSet.StringVar(&action.machineName, "name", "", "machine name")
-
-	err = flagSet.Parse(arguments)
-	if err != nil {
-		return err
+	if len(arguments) < 1 {
+		return fmt.Errorf("machine name is mandatory")
 	}
 
-	if len(action.machineName) == 0 {
-		flagSet.Usage()
-		return fmt.Errorf("--name is mandatory")
+	if action.machineName = arguments[0]; len(action.machineName) == 0 {
+		return fmt.Errorf("machine name is mandatory")
 	}
 
 	machine = runtime.NewMachine(action.machineName)
+	qemuMonitor := qemuctl_qemu.NewQemuMonitor(machine)
 
-	err = monitor.ShutdownMachine(action.machineName)
+	err = qemuMonitor.SendShutdownCommand()
 	if err != nil {
+		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
 	}
 
