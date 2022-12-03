@@ -18,6 +18,10 @@ func GetUserDataDir() string {
 	return fmt.Sprintf("%s/%s", os.ExpandEnv("$HOME"), RuntimeBaseDirName)
 }
 
+func GetMachinesBaseDir() string {
+	return fmt.Sprintf("%s/%s", GetUserDataDir(), MachineBaseDirectoryName)
+}
+
 func SetupRuntimeData() (err error) {
 	var qemuctlDir string = GetUserDataDir()
 

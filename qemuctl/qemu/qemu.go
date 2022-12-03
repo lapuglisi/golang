@@ -211,14 +211,15 @@ func (qemu *QemuCommand) getQemuArgs() (qemuArgs []string, err error) {
 	return qemuArgs, nil
 }
 
-func (qemu *QemuCommand) Launch() (err error) {
+func (qemu *QemuCommand) Launch() (procPid int, err error) {
 	var procAttrs *os.ProcAttr
-
 	var qemuArgs []string
+
+	procPid = 0
 
 	qemuArgs, err = qemu.getQemuArgs()
 	if err != nil {
-		return err
+		return procPid, err
 	}
 
 	// TODO: use the log feature
@@ -241,10 +242,15 @@ func (qemu *QemuCommand) Launch() (err error) {
 
 	procHandle, err := os.StartProcess(qemu.QemuPath, qemuArgs, procAttrs)
 	if err == nil {
+		log.Printf("[qemu.launch] success: %v", procHandle)
+		procPid = procHandle.Pid
+
 		if qemu.Configuration.RunAsDaemon {
 			err = procHandle.Release()
 		}
+	} else {
+		log.Printf("[qemu.launch] some error ocurred: %s", err.Error())
 	}
 
-	return err
+	return procPid, err
 }

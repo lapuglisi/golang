@@ -3,6 +3,7 @@ package qemuctl_qemu
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 
@@ -137,6 +138,7 @@ func (monitor *QemuMonitor) SendShutdownCommand() (err error) {
 	if err != nil {
 		return err
 	}
+	defer unix.Close()
 
 	log.Printf("[SendShutdownCommand] sending shutdown command")
 	shutdownCommand = QmpBasicCommand{
@@ -148,11 +150,20 @@ func (monitor *QemuMonitor) SendShutdownCommand() (err error) {
 	}
 
 	/* Now read incoming events */
+	err = nil
 	log.Printf("[SendShutdownCommand] reading incoming events")
 	qmpEvent := QmpEventResult{}
-	for qmpEvent.ReadEvent(unix) {
+	for {
+		err := qmpEvent.ReadEvent(unix)
 		log.Printf("[SendShutdownCommand] event received: %v", qmpEvent)
+
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
 	}
 
-	return unix.Close()
+	return err
 }

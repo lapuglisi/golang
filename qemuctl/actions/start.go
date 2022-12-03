@@ -68,5 +68,15 @@ func (action *StartAction) handleStart() (err error) {
 	log.Printf("[start] launching qemu command")
 	qemu := qemuctl_qemu.NewQemuCommand(configData, qemuMonitor)
 
-	return qemu.Launch()
+	qemuPid, err := qemu.Launch()
+
+	if err == nil {
+		machine.QemuPid = qemuPid
+		machine.SSHLocalPort = configData.SSH.LocalPort
+		machine.UpdateStatus(runtime.MachineStatusStarted)
+	} else {
+		machine.UpdateStatus(runtime.MachineStatusDegraded)
+	}
+
+	return err
 }

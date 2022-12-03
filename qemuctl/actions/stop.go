@@ -39,6 +39,8 @@ func (action *StopAction) Run(arguments []string) (err error) {
 	}
 
 	// Now, update machine status
+	machine.QemuPid = 0
+	machine.SSHLocalPort = 0
 	machine.UpdateStatus(runtime.MachineStatusStopped)
 	fmt.Printf("\033[32m ok!\033[0m\n")
 

@@ -86,12 +86,17 @@ func (action *CreateAction) handleCreate() (err error) {
 	/* Get QemuCommand instance */
 	qemuMonitor := qemuctl_qemu.NewQemuMonitor(machine)
 	qemu = qemuctl_qemu.NewQemuCommand(configData, qemuMonitor)
-	err = qemu.Launch()
+	qemuPid, err := qemu.Launch()
+
 	if err != nil {
 		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
 	}
 
+	log.Printf("[create] new machine: QemuPid is %d, SSHLocalPort is %d", qemuPid, configData.SSH.LocalPort)
+
+	machine.QemuPid = qemuPid
+	machine.SSHLocalPort = configData.SSH.LocalPort
 	machine.UpdateStatus(runtime.MachineStatusStarted)
 
 	return nil

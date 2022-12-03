@@ -73,6 +73,11 @@ func main() {
 			action := actions.EditAction{}
 			err = action.Run(execArgs)
 		}
+	case "list":
+		{
+			action := actions.ListAction{}
+			err = action.Run(execArgs)
+		}
 	default:
 		{
 			fmt.Printf("[error] Unknown action '%s'\n", action)

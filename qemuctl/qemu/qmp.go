@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"time"
 )
 
 const (
@@ -156,11 +157,18 @@ func (command *QmpCommandQueryStatus) Execute(socket net.Conn) (result *QmpQuery
 	return result, err
 }
 
-func (event *QmpEventResult) ReadEvent(socket net.Conn) bool {
+func (event *QmpEventResult) ReadEvent(socket net.Conn) (err error) {
 	var buffer []byte = make([]byte, QmpDefaultBufferSize)
 	var jsonData []byte = make([]byte, 0)
-	var err error
 	var nBytes int
+
+	var deadLineDuration time.Duration = 10 * 1000000000
+
+	/* Set some deadline to socket */
+	deadLine := time.Now().Add(deadLineDuration)
+	if _err := socket.SetReadDeadline(deadLine); _err != nil {
+		log.Printf("[ReadEvent] could not set socket deadline: %s", _err.Error())
+	}
 
 	log.Printf("[ReadEvent] reading data from socket")
 	for nBytes, err = socket.Read(buffer); err == nil && nBytes > 0; {
@@ -171,13 +179,21 @@ func (event *QmpEventResult) ReadEvent(socket net.Conn) bool {
 		}
 	}
 
+	log.Printf("[ReadEvent] socket.read returned: err is %v, nBytes is %d", err, nBytes)
+
+	/* Check for err from socket.Read() */
 	if err != nil || nBytes == 0 {
-		return false
+		return err
+	}
+
+	/* Reset socket deadline */
+	if _err := socket.SetReadDeadline(time.Unix(0, 0)); _err != nil {
+		log.Printf("[ReadEvent] could not reset socket deadline: %s", _err.Error())
 	}
 
 	log.Printf("[ReadEvent] received from socket: [%s]", string(jsonData))
 
 	err = json.Unmarshal(jsonData, &event)
 
-	return (err == nil)
+	return err
 }
