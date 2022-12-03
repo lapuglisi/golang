@@ -3,6 +3,7 @@ package qemuctl_actions
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	helpers "luizpuglisi.com/qemuctl/helpers"
 	qemuctl_qemu "luizpuglisi.com/qemuctl/qemu"
@@ -25,16 +26,16 @@ func (action *StartAction) Run(arguments []string) (err error) {
 	}
 	action.machineName = arguments[0]
 
-	fmt.Printf("[start] starting machine '%s'...", action.machineName)
+	fmt.Printf("[start] starting machine '%s'... ", action.machineName)
 
 	/* Do proper handling */
 	err = action.handleStart()
 	if err != nil {
-		fmt.Printf(" \033[31;1merror\033[0m: %s\n", err.Error())
+		fmt.Println("\033[33;1merror!\033[0m")
 		return err
 	}
 
-	fmt.Printf(" \033[32;1mok!\033[0m\n")
+	fmt.Println("\033[32;1mok!\033[0m")
 	return nil
 }
 
@@ -50,6 +51,10 @@ func (action *StartAction) handleStart() (err error) {
 
 	if machine.IsStarted() {
 		return fmt.Errorf("[start] machine '%s' is already started", action.machineName)
+	}
+
+	if machine.IsDegraded() {
+		return fmt.Errorf("[start] cannot start a degraded machine")
 	}
 
 	/* in this release, starting a machine means creating it again */
@@ -68,10 +73,21 @@ func (action *StartAction) handleStart() (err error) {
 	log.Printf("[start] launching qemu command")
 	qemu := qemuctl_qemu.NewQemuCommand(configData, qemuMonitor)
 
-	qemuPid, err := qemu.Launch()
-
+	err = qemu.Launch()
 	if err == nil {
-		machine.QemuPid = qemuPid
+		procPid := 0
+		pidString, err := qemuMonitor.GetPidFileData()
+		if err != nil {
+			log.Printf("[start] could not get process pid: %s", err.Error())
+		} else {
+			procPid, err = strconv.Atoi(pidString)
+			if err != nil {
+				log.Printf("[start] could not convert pid string to int %s", err.Error())
+			} else {
+				log.Printf("[start] got machine pid: %d", procPid)
+			}
+		}
+		machine.QemuPid = procPid
 		machine.SSHLocalPort = configData.SSH.LocalPort
 		machine.UpdateStatus(runtime.MachineStatusStarted)
 	} else {

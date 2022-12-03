@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
+	"strings"
 
 	runtime "luizpuglisi.com/qemuctl/runtime"
 )
@@ -17,7 +19,6 @@ func init() {
 const (
 	QemuMonitorSocketFileName string = "qemu-monitor.sock"
 	QemuMonitorDefaultID      string = "qemu-mon-qmp"
-	QemuMonitorPIDFileName    string = "qemu.pid"
 )
 
 type QemuMonitor struct {
@@ -75,7 +76,23 @@ func (monitor *QemuMonitor) GetMonitorSpec() string {
 
 func (monitor *QemuMonitor) GetPidFilePath() string {
 	return fmt.Sprintf("%s/%s",
-		monitor.Machine.RuntimeDirectory, QemuMonitorPIDFileName)
+		monitor.Machine.RuntimeDirectory, runtime.RuntimeQemuPIDFileName)
+}
+
+func (monitor *QemuMonitor) GetPidFileData() (pidString string, err error) {
+	var filePath string = monitor.GetPidFilePath()
+	var fileData []byte
+
+	log.Printf("[monitor] reading PID from file '%s'", filePath)
+
+	fileData, err = os.ReadFile(filePath)
+	if err != nil {
+		return "0", err
+	}
+
+	pidString = strings.TrimSpace(string(fileData))
+
+	return pidString, nil
 }
 
 func (monitor *QemuMonitor) GetControlSocket() (unix net.Conn, err error) {
@@ -154,15 +171,16 @@ func (monitor *QemuMonitor) SendShutdownCommand() (err error) {
 	log.Printf("[SendShutdownCommand] reading incoming events")
 	qmpEvent := QmpEventResult{}
 	for {
-		err := qmpEvent.ReadEvent(unix)
-		log.Printf("[SendShutdownCommand] event received: %v", qmpEvent)
-
+		err = qmpEvent.ReadEvent(unix)
 		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
 			break
 		}
+		log.Printf("[SendShutdownCommand] event received: %v", qmpEvent)
+	}
+
+	if err != nil && err == io.EOF {
+		log.Printf("[monitor] ReadEvent returned err == EOF; ignoring")
+		err = nil
 	}
 
 	return err

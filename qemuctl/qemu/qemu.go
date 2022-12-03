@@ -42,6 +42,22 @@ func NewQemuCommand(configData *config.ConfigurationData, qemuMonitor *QemuMonit
 	}
 }
 
+func (qemu *QemuCommand) getBoolString(qemuFlag bool, trueValue string, falseValue string) string {
+	if qemuFlag {
+		return trueValue
+	}
+
+	return falseValue
+}
+
+func (qemu *QemuCommand) getKeyValuePair(include bool, key string, value string) string {
+	if include {
+		return fmt.Sprintf("%s=%s", key, value)
+	}
+
+	return ""
+}
+
 func (qemu *QemuCommand) appendQemuArg(argSlice []string, argKey string, argValue string) []string {
 	return append(argSlice, []string{argKey, argValue}...)
 }
@@ -74,6 +90,22 @@ func (qemu *QemuCommand) getQemuArgs() (qemuArgs []string, err error) {
 		}
 
 		qemuArgs = qemu.appendQemuArg(qemuArgs, "-machine", machineSpec)
+
+		/* TPM Specification, if any */
+		if cd.Machine.TPM.Passthrough.Enabled {
+			tpmSpec := fmt.Sprintf("passthrough,id=%s%s%s",
+				cd.Machine.TPM.Passthrough.ID,
+				qemu.getKeyValuePair(len(cd.Machine.TPM.Passthrough.Path) > 0, ",path", cd.Machine.TPM.Passthrough.Path),
+				qemu.getKeyValuePair(len(cd.Machine.TPM.Passthrough.CancelPath) > 0, ",cancel-path", cd.Machine.TPM.Passthrough.CancelPath))
+
+			qemuArgs = qemu.appendQemuArg(qemuArgs, "-tpmdev", tpmSpec)
+		} else if cd.Machine.TPM.Emulator.Enabled {
+			tpmSpec := fmt.Sprintf("emulator,id=%s,chardev=%s",
+				cd.Machine.TPM.Emulator.ID,
+				cd.Machine.TPM.Emulator.CharDevice)
+
+			qemuArgs = qemu.appendQemuArg(qemuArgs, "-tpmdev", tpmSpec)
+		}
 	}
 
 	// -- Machine Name
@@ -106,12 +138,28 @@ func (qemu *QemuCommand) getQemuArgs() (qemuArgs []string, err error) {
 	}
 
 	// VNC ?
-	if len(cd.VNCConfig) > 0 {
+	if cd.Display.VNC.Enabled {
 		// Is it in the format "xxx.xxx.xxx.xxx:ddd" ?
-		if vncRegex.Match([]byte(cd.VNCConfig)) {
-			qemuArgs = qemu.appendQemuArg(qemuArgs, "-vnc", cd.VNCConfig)
+		if vncRegex.Match([]byte(cd.Display.VNC.Listen)) {
+			qemuArgs = qemu.appendQemuArg(qemuArgs, "-vnc", cd.Display.VNC.Listen)
 		} else {
-			qemuArgs = qemu.appendQemuArg(qemuArgs, "-vnc", fmt.Sprintf("127.0.0.1:%s", cd.VNCConfig))
+			qemuArgs = qemu.appendQemuArg(qemuArgs, "-vnc", fmt.Sprintf("127.0.0.1:%s", cd.Display.VNC.Listen))
+		}
+	}
+
+	// Spice is enabled?
+	if cd.Display.Spice.Enabled {
+		if cd.Display.Spice.Port <= 0 {
+			log.Printf("[getQemuArgs] spice is enable but spice.port is not defined")
+		} else {
+			spiceSpec := fmt.Sprintf("port=%d,tls-port=%d%s,disable-ticketing=%s,agent-mouse=%s,password=%s",
+				cd.Display.Spice.Port, cd.Display.Spice.TLSPort,
+				qemu.getKeyValuePair(len(cd.Display.Spice.Address) > 0, ",addr", cd.Display.Spice.Address),
+				qemu.getBoolString(cd.Display.Spice.DisableTicketing, "on", "off"),
+				qemu.getBoolString(cd.Display.Spice.EnableAgentMouse, "on", "off"),
+				cd.Display.Spice.Password)
+
+			qemuArgs = qemu.appendQemuArg(qemuArgs, "-spice", spiceSpec)
 		}
 	}
 
@@ -211,15 +259,13 @@ func (qemu *QemuCommand) getQemuArgs() (qemuArgs []string, err error) {
 	return qemuArgs, nil
 }
 
-func (qemu *QemuCommand) Launch() (procPid int, err error) {
-	var procAttrs *os.ProcAttr
+func (qemu *QemuCommand) Launch() (err error) {
+	var procAttrs *os.ProcAttr = nil
 	var qemuArgs []string
-
-	procPid = 0
 
 	qemuArgs, err = qemu.getQemuArgs()
 	if err != nil {
-		return procPid, err
+		return err
 	}
 
 	// TODO: use the log feature
@@ -243,14 +289,28 @@ func (qemu *QemuCommand) Launch() (procPid int, err error) {
 	procHandle, err := os.StartProcess(qemu.QemuPath, qemuArgs, procAttrs)
 	if err == nil {
 		log.Printf("[qemu.launch] success: %v", procHandle)
-		procPid = procHandle.Pid
 
-		if qemu.Configuration.RunAsDaemon {
-			err = procHandle.Release()
+		procState, err := procHandle.Wait()
+		if err != nil {
+			log.Printf("[launch] waiting for processes failed: %s", err.Error())
+		} else {
+			if procState.Success() {
+				log.Printf("[launch] success on wait on process: %s", procState.String())
+
+				if qemu.Configuration.RunAsDaemon {
+					err = procHandle.Release()
+					if err != nil {
+						log.Printf("[launch] process release failed: %s", err.Error())
+					}
+				}
+			} else {
+				err = fmt.Errorf(procState.String())
+				log.Printf("[launch] waiting for processes failed: %s", err.Error())
+			}
 		}
 	} else {
 		log.Printf("[qemu.launch] some error ocurred: %s", err.Error())
 	}
 
-	return procPid, err
+	return err
 }

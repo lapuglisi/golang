@@ -2,6 +2,7 @@ package qemuctl_qemu
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -181,19 +182,19 @@ func (event *QmpEventResult) ReadEvent(socket net.Conn) (err error) {
 
 	log.Printf("[ReadEvent] socket.read returned: err is %v, nBytes is %d", err, nBytes)
 
-	/* Check for err from socket.Read() */
-	if err != nil || nBytes == 0 {
-		return err
-	}
-
 	/* Reset socket deadline */
 	if _err := socket.SetReadDeadline(time.Unix(0, 0)); _err != nil {
 		log.Printf("[ReadEvent] could not reset socket deadline: %s", _err.Error())
+	}
+	/* Check for err from socket.Read() */
+	if err != nil {
+		return err
+	} else if nBytes == 0 {
+		return fmt.Errorf("no more data")
 	}
 
 	log.Printf("[ReadEvent] received from socket: [%s]", string(jsonData))
 
 	err = json.Unmarshal(jsonData, &event)
-
 	return err
 }

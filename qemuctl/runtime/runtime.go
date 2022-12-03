@@ -11,7 +11,8 @@ func init() {
 }
 
 const (
-	RuntimeBaseDirName string = ".qemuctl"
+	RuntimeBaseDirName     string = ".qemuctl"
+	RuntimeQemuPIDFileName string = "qemu.pid"
 )
 
 func GetUserDataDir() string {

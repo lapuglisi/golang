@@ -21,8 +21,21 @@ type ConfigurationData struct {
 		MachineName string `yaml:"name"`
 		MachineType string `yaml:"type"`
 		AccelType   string `yaml:"accel"`
+		TPM         struct {
+			Enabled     bool `yaml:"enabled"`
+			Passthrough struct {
+				Enabled    bool   `yaml:"enabled"`
+				ID         string `yaml:"id"`
+				Path       string `yaml:"path"`
+				CancelPath string `yaml:"cancelPath"`
+			} `yaml:"passthrough"`
+			Emulator struct {
+				Enabled    bool   `yaml:"enabled"`
+				ID         string `yaml:"id"`
+				CharDevice string `yaml:"charDevice"`
+			} `yaml:"emulator"`
+		} `yaml:"tmp"`
 	} `yaml:"machine"`
-	VNCConfig   string `yaml:"vncListen"`
 	RunAsDaemon bool   `yaml:"runAsDaemon"`
 	Memory      string `yaml:"memory"`
 	CPUs        int64  `yaml:"cpus"`
@@ -52,6 +65,19 @@ type ConfigurationData struct {
 		EnableGraphics bool   `yaml:"enableGraphics"`
 		VGAType        string `yaml:"vgaType"`
 		DisplaySpec    string `yaml:"displaySpec"`
+		VNC            struct {
+			Enabled bool   `yaml:"enabled"`
+			Listen  string `yaml:"listen"`
+		} `yaml:"vnc"`
+		Spice struct {
+			Enabled          bool   `yaml:"enabled"`
+			Port             int    `yaml:"port"`
+			Address          string `yaml:"address"`
+			TLSPort          int    `yaml:"tlsPort"`
+			DisableTicketing bool   `yaml:"disableTicketing"`
+			Password         string `yaml:"password"`
+			EnableAgentMouse bool   `yaml:"enableAgentMouse"`
+		} `yaml:"spice"`
 	} `yaml:"display"`
 	Boot struct {
 		KernelPath     string `yaml:"kernelPath"`
@@ -79,6 +105,9 @@ func NewConfigData() (configData *ConfigurationData) {
 	configData.Machine.AccelType = "hvm"
 	configData.Machine.EnableKVM = true
 
+	configData.Machine.TPM.Passthrough.Enabled = false
+	configData.Machine.TPM.Emulator.Enabled = false
+
 	configData.Net.DeviceType = "e1000"
 
 	configData.Net.User.ID = "mynet0"
@@ -87,9 +116,13 @@ func NewConfigData() (configData *ConfigurationData) {
 
 	configData.RunAsDaemon = false
 
+	/* Display spec */
 	configData.Display.EnableGraphics = true
 	configData.Display.VGAType = "none"
 	configData.Display.DisplaySpec = "none"
+
+	configData.Display.VNC.Enabled = false
+	configData.Display.Spice.Enabled = false
 
 	return configData
 }

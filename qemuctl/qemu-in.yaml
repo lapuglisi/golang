@@ -3,8 +3,16 @@ machine:
   type: q35
   accel: kvm
   enableKVM: true
-
-vncListen: [xxx.xxx.xxx.xxx:]display_number
+  tpm:
+    passthrough:
+      enabled: false
+      id: none
+      path: /dev/tpm-path
+      cancelPath: /dev/tpm-cancel-path
+    emulator:
+      enabled: false
+      id: none
+      charDevice: some-char-dev
 
 runAsDaemon: true
 
@@ -32,6 +40,17 @@ display:
   enableGraphics: true
   displaySpec: default
   vgaType: std
+  vnc:
+    enabled: true
+    listen: [xxx.xxx.xxx.xxx:]display_number
+  spice:
+    enabled: true
+    port: 0
+    address: xxx.xxx.xxx.xxx
+    tlsPort: 0
+    disableTicketing: true
+    password: somepass
+    enableAgentMouse: true
 
 disks:
   cdrom: /path/to/cdrom.iso

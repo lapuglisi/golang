@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"syscall"
 )
 
 func init() {
@@ -40,14 +41,14 @@ type Machine struct {
 	initialized      bool
 }
 
-func NewMachine(machineName string) *Machine {
+func NewMachine(machineName string) (machine *Machine) {
 	var runtimeDirectory string = fmt.Sprintf("%s/%s/%s",
 		GetUserDataDir(), MachineBaseDirectoryName, machineName)
 	var dataFile string = fmt.Sprintf("%s/%s", runtimeDirectory, MachineDataFileName)
+	configFile := fmt.Sprintf("%s/%s", runtimeDirectory, MachineConfigFileName)
 
 	var fileData []byte
 	var machineData MachineData = MachineData{
-		QemuPid:      0,
 		State:        MachineStatusUnknown,
 		SSHLocalPort: 0,
 	}
@@ -63,9 +64,7 @@ func NewMachine(machineName string) *Machine {
 		}
 	}
 
-	configFile := fmt.Sprintf("%s/%s", runtimeDirectory, MachineConfigFileName)
-
-	return &Machine{
+	machine = &Machine{
 		Name:             machineName,
 		Status:           machineData.State,
 		QemuPid:          machineData.QemuPid,
@@ -74,6 +73,35 @@ func NewMachine(machineName string) *Machine {
 		ConfigFile:       configFile,
 		initialized:      true,
 	}
+
+	/* Make sure to check if qemu's process is actually running */
+	if machine.IsStarted() {
+		log.Printf("[machine] checking for pid file")
+		log.Printf("[machine] checking for qemu process #%d", machineData.QemuPid)
+
+		if machine.QemuPid > 0 {
+			procHandle, err := os.FindProcess(machine.QemuPid)
+			if err == nil {
+				err = procHandle.Signal(syscall.SIGCONT)
+			}
+			if err != nil {
+				log.Printf("[machine] looks like the process %d is not there (%v). updating machine status", machineData.QemuPid, err)
+				machine.QemuPid = 0
+				machine.Status = MachineStatusDegraded
+				machine.SSHLocalPort = 0
+				machine.UpdateStatus(MachineStatusDegraded)
+			}
+		} else {
+			log.Printf("[machine] invalid PID #%d for machine '%s'", machineData.QemuPid, machineName)
+			log.Printf("[machine] PID %d is not valid, machine is therefore degraded; updating machine status", machineData.QemuPid)
+			machine.QemuPid = 0
+			machine.Status = MachineStatusDegraded
+			machine.SSHLocalPort = 0
+			machine.UpdateStatus(MachineStatusDegraded)
+		}
+	}
+
+	return machine
 }
 
 func (m *Machine) Exists() bool {
@@ -130,7 +158,7 @@ func (m *Machine) UpdateStatus(status string) (err error) {
 	switch status {
 	case MachineStatusDegraded, MachineStatusStarted, MachineStatusStopped, MachineStatusUnknown:
 		{
-			log.Printf("[UpdateStatus] updating file '%s'.\n", statusFile)
+			log.Printf("[UpdateStatus] updating file '%s' with [%v].\n", statusFile, machineData)
 			jsonBytes, err := json.Marshal(machineData)
 
 			if err != nil {
@@ -175,4 +203,15 @@ func (m *Machine) UpdateConfigFile(sourcePath string) (err error) {
 	_, err = io.Copy(targetFile, sourceFile)
 
 	return err
+}
+
+func (m *Machine) GetMachineFileData(fileName string) (data []byte, err error) {
+	var filePath string = fmt.Sprintf("%s/%s", m.RuntimeDirectory, fileName)
+
+	data, err = os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strconv"
 
 	helpers "luizpuglisi.com/qemuctl/helpers"
 	qemuctl_qemu "luizpuglisi.com/qemuctl/qemu"
@@ -59,11 +60,12 @@ func (action *CreateAction) handleCreate() (err error) {
 	action.machineName = configData.Machine.MachineName
 	machine = runtime.NewMachine(action.machineName)
 
-	fmt.Printf("[qemuctl] Creating machine '%s' (%s).\n",
+	fmt.Printf("[qemuctl] Creating machine '%s' (%s).... ",
 		action.machineName, action.configFile)
 
 	/* Check machine status */
 	if machine.Exists() {
+		fmt.Println("\033[31merror!\033[0m")
 		return fmt.Errorf("machine '%s' exists", action.machineName)
 	} else {
 		machine.CreateRuntime()
@@ -86,18 +88,35 @@ func (action *CreateAction) handleCreate() (err error) {
 	/* Get QemuCommand instance */
 	qemuMonitor := qemuctl_qemu.NewQemuMonitor(machine)
 	qemu = qemuctl_qemu.NewQemuCommand(configData, qemuMonitor)
-	qemuPid, err := qemu.Launch()
 
+	log.Printf("[create] launching qemu")
+	err = qemu.Launch()
 	if err != nil {
+		machine.QemuPid = 0
+		machine.SSHLocalPort = 0
 		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
+	} else {
+		procPid := 0
+		pidData, err := qemuMonitor.GetPidFileData()
+		if err != nil {
+			log.Printf("[create] could not get process pid: %s", err.Error())
+		} else {
+			procPid, err = strconv.Atoi(pidData)
+			if err != nil {
+				log.Printf("[start] could not convert pid string to int %s", err.Error())
+			} else {
+				log.Printf("[start] got machine pid: %d", procPid)
+			}
+		}
+
+		log.Printf("[create] new machine: QemuPid is %d, SSHLocalPort is %d", procPid, configData.SSH.LocalPort)
+		machine.QemuPid = procPid
+		machine.SSHLocalPort = configData.SSH.LocalPort
+		machine.UpdateStatus(runtime.MachineStatusStarted)
+
+		fmt.Println("\033[32mok!\033[0m")
 	}
-
-	log.Printf("[create] new machine: QemuPid is %d, SSHLocalPort is %d", qemuPid, configData.SSH.LocalPort)
-
-	machine.QemuPid = qemuPid
-	machine.SSHLocalPort = configData.SSH.LocalPort
-	machine.UpdateStatus(runtime.MachineStatusStarted)
 
 	return nil
 }

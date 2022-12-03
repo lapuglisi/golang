@@ -9,7 +9,6 @@ import (
 )
 
 type ListAction struct {
-	machineName string
 }
 
 func (action *ListAction) Run(arguments []string) (err error) {
