@@ -39,11 +39,8 @@ func (action *StopAction) Run(arguments []string) (err error) {
 	}
 
 	// Now, update machine status
-	if machine.Destroy() {
-		fmt.Printf("\033[32m ok!\033[0m\n")
-	} else {
-		fmt.Printf("\033[32m error!\033[0m\n")
-	}
+	machine.UpdateStatus(runtime.MachineStatusStopped)
+	fmt.Printf("\033[32m ok!\033[0m\n")
 
 	return nil
 }

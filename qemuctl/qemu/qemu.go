@@ -12,14 +12,23 @@ import (
 	runtime "luizpuglisi.com/qemuctl/runtime"
 )
 
+const (
+	QemuDefaultSystemBin string = "qemu-system-x86_64"
+)
+
 type QemuCommand struct {
 	QemuPath      string
 	Configuration *config.ConfigurationData
 	Monitor       *QemuMonitor
 }
 
-func NewQemuCommand(qemuBinary string, configData *config.ConfigurationData, qemuMonitor *QemuMonitor) (qemu *QemuCommand) {
+func NewQemuCommand(configData *config.ConfigurationData, qemuMonitor *QemuMonitor) (qemu *QemuCommand) {
 	var qemuPath string
+	var qemuBinary string = configData.QemuBinary
+
+	if len(qemuBinary) == 0 {
+		qemuBinary = QemuDefaultSystemBin
+	}
 
 	qemuPath, err := exec.LookPath(qemuBinary)
 	if err != nil {
@@ -195,6 +204,9 @@ func (qemu *QemuCommand) getQemuArgs() (qemuArgs []string, err error) {
 	/* Add a monitor specfication to be able to operate on the machine */
 	qemuArgs = qemu.appendQemuArg(qemuArgs, "-chardev", monitor.GetChardevSpec())
 	qemuArgs = qemu.appendQemuArg(qemuArgs, "-qmp", monitor.GetMonitorSpec())
+
+	/* Add PIDfile spec */
+	qemuArgs = qemu.appendQemuArg(qemuArgs, "-pidfile", monitor.GetPidFilePath())
 
 	return qemuArgs, nil
 }

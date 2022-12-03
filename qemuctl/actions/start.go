@@ -1,7 +1,6 @@
 package qemuctl_actions
 
 import (
-	"flag"
 	"fmt"
 	"log"
 
@@ -13,10 +12,6 @@ import (
 func init() {
 }
 
-const (
-	QemuDefaultSystemBin string = "qemu-system-x86_64"
-)
-
 type StartAction struct {
 	machineName string
 	configFile  string
@@ -24,76 +19,54 @@ type StartAction struct {
 }
 
 func (action *StartAction) Run(arguments []string) (err error) {
-	var flagSet *flag.FlagSet = flag.NewFlagSet("qemuctl start", flag.ExitOnError)
-
-	flagSet.StringVar(&action.qemuBinary, "qemu", QemuDefaultSystemBin, "qemu binary")
-	flagSet.StringVar(&action.configFile, "config", "", "YAML configuration file")
-
-	err = flagSet.Parse(arguments)
-	if err != nil {
-		return err
-	}
-
 	/* Check for machine name */
-	if len(flagSet.Args()) < 1 {
+	if len(arguments) < 1 {
 		return fmt.Errorf("machine name is mandatory")
 	}
-	action.machineName = flagSet.Arg(0)
+	action.machineName = arguments[0]
 
-	log.Printf("[start::Run] action.machineName is '%s'\n", action.machineName)
-
-	/* Do flags validation */
-	if len(action.configFile) == 0 {
-		flagSet.Usage()
-		return fmt.Errorf("--config is mandatory")
-	}
+	fmt.Printf("[start] starting machine '%s'...", action.machineName)
 
 	/* Do proper handling */
 	err = action.handleStart()
 	if err != nil {
+		fmt.Printf(" \033[31;1merror\033[0m: %s\n", err.Error())
 		return err
 	}
 
+	fmt.Printf(" \033[32;1mok!\033[0m\n")
 	return nil
 }
 
 func (action *StartAction) handleStart() (err error) {
-	var configData *helpers.ConfigurationData = nil
-	var qemuBinary string = action.qemuBinary
-	var qemu *qemuctl_qemu.QemuCommand
 	var machine *runtime.Machine
 
-	err = nil
-
+	log.Printf("[start] starting machine '%s'", action.machineName)
 	machine = runtime.NewMachine(action.machineName)
 
-	log.Printf("qemuctl: starting machine %s...\n", action.machineName)
-
-	/* Check machine status */
-	if machine.Exists() {
-		if machine.IsStarted() {
-			return fmt.Errorf("machine '%s' is already started", action.machineName)
-		}
-	} else {
-		machine.CreateRuntime()
+	if !machine.Exists() {
+		return fmt.Errorf("machine '%s' dos not exist", action.machineName)
 	}
 
-	configHandle := helpers.NewConfigHandler(action.configFile)
-	configData, err = configHandle.ParseConfigFile()
+	if machine.IsStarted() {
+		return fmt.Errorf("[start] machine '%s' is already started", action.machineName)
+	}
+
+	/* in this release, starting a machine means creating it again */
+	log.Printf("[start] relaunching machine '%s' (%s)", machine.Name, machine.ConfigFile)
+
+	log.Printf("[start] parsing config file '%s'", machine.ConfigFile)
+	configHandle := helpers.NewConfigHandler(machine.ConfigFile)
+	configData, err := configHandle.ParseConfigFile()
 	if err != nil {
-		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
 	}
 
-	/* Get QemuCommand instance */
+	log.Printf("[start] creating qemuMonitor instance")
 	qemuMonitor := qemuctl_qemu.NewQemuMonitor(machine)
-	qemu = qemuctl_qemu.NewQemuCommand(qemuBinary, configData, qemuMonitor)
-	err = qemu.Launch()
-	if err != nil {
-		machine.UpdateStatus(runtime.MachineStatusDegraded)
-		return err
-	}
 
-	machine.UpdateStatus(runtime.MachineStatusStarted)
-	return nil
+	log.Printf("[start] launching qemu command")
+	qemu := qemuctl_qemu.NewQemuCommand(configData, qemuMonitor)
+
+	return qemu.Launch()
 }

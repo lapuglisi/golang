@@ -60,6 +60,7 @@ type ConfigurationData struct {
 		EnableBootMenu bool   `yaml:"enableBootMenu"`
 		BootOrder      string `yaml:"bootOrder"`
 	} `yaml:"boot"`
+	QemuBinary string `yaml:"qemuBinary"`
 }
 
 // ConfigurationHandler is one hell of a seroclockers
@@ -91,10 +92,6 @@ func NewConfigData() (configData *ConfigurationData) {
 	configData.Display.DisplaySpec = "none"
 
 	return configData
-}
-
-func (cd *ConfigurationData) appendQemuArg(argsSlice []string, argKey string, argValue string) (newSlice []string) {
-	return append(argsSlice, []string{argKey, argValue}...)
 }
 
 /* ConfigurationHandler implementation */

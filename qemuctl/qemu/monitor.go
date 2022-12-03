@@ -16,6 +16,7 @@ func init() {
 const (
 	QemuMonitorSocketFileName string = "qemu-monitor.sock"
 	QemuMonitorDefaultID      string = "qemu-mon-qmp"
+	QemuMonitorPIDFileName    string = "qemu.pid"
 )
 
 type QemuMonitor struct {
@@ -69,6 +70,11 @@ func (monitor *QemuMonitor) GetChardevSpec() string {
 
 func (monitor *QemuMonitor) GetMonitorSpec() string {
 	return fmt.Sprintf("chardev:%s", QemuMonitorDefaultID)
+}
+
+func (monitor *QemuMonitor) GetPidFilePath() string {
+	return fmt.Sprintf("%s/%s",
+		monitor.Machine.RuntimeDirectory, QemuMonitorPIDFileName)
 }
 
 func (monitor *QemuMonitor) GetControlSocket() (unix net.Conn, err error) {

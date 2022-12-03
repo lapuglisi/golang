@@ -1,8 +1,8 @@
 package qemuctl_runtime
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -20,12 +20,14 @@ const (
 	MachineStatusStopped     string = "stopped"
 	MachineStatusDegraded    string = "degraded"
 	MachineStatusUnknown     string = "unknown"
+	MachineConfigFileName    string = "config.yaml"
 )
 
 type Machine struct {
 	Name             string
 	Status           string
 	RuntimeDirectory string
+	ConfigFile       string
 	initialized      bool
 }
 
@@ -45,10 +47,13 @@ func NewMachine(machineName string) *Machine {
 		machineStatus = string(fileData)
 	}
 
+	configFile := fmt.Sprintf("%s/%s", runtimeDirectory, MachineConfigFileName)
+
 	return &Machine{
 		Name:             machineName,
 		Status:           machineStatus,
 		RuntimeDirectory: runtimeDirectory,
+		ConfigFile:       configFile,
 		initialized:      true,
 	}
 }
@@ -89,24 +94,18 @@ func (m *Machine) IsUnknown() bool {
 func (m *Machine) UpdateStatus(status string) (err error) {
 	var statusFile string = fmt.Sprintf("%s/%s", m.RuntimeDirectory, MachineStatusFileName)
 	var fileHandle *os.File
-	var fileData *bytes.Buffer
 
 	log.Printf("[UpdateStatus] opening file '%s'\n", statusFile)
-	fileHandle, err = os.OpenFile(statusFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
+	fileHandle, err = os.OpenFile(statusFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
-	defer fileHandle.Close()
 
 	switch status {
-	case MachineStatusDegraded:
-	case MachineStatusStarted:
-	case MachineStatusStopped:
-	case MachineStatusUnknown:
+	case MachineStatusDegraded, MachineStatusStarted, MachineStatusStopped, MachineStatusUnknown:
 		{
-			fileData = bytes.NewBufferString(status)
-			_, err = fileHandle.Write(fileData.Bytes())
-			fileHandle.Sync()
+			log.Printf("[UpdateStatus] writing '%s' to file '%s'.\n", status, statusFile)
+			_, err = fileHandle.WriteString(status)
 			break
 		}
 	default:
@@ -114,10 +113,29 @@ func (m *Machine) UpdateStatus(status string) (err error) {
 			err = fmt.Errorf("invalid machine status '%s'", status)
 		}
 	}
+	fileHandle.Close()
 
 	return err
 }
 
 func (m *Machine) CreateRuntime() {
 	os.Mkdir(m.RuntimeDirectory, 0744)
+}
+
+func (m *Machine) UpdateConfigFile(sourcePath string) (err error) {
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	targetFile, err := os.Create(m.ConfigFile)
+	if err != nil {
+		return err
+	}
+	defer targetFile.Close()
+
+	_, err = io.Copy(targetFile, sourceFile)
+
+	return err
 }

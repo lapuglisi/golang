@@ -34,7 +34,21 @@ func main() {
 	action = execArgs[1]
 	execArgs = execArgs[2:]
 
+	fmt.Println("")
+
 	switch action {
+	case "create":
+		{
+			action := actions.CreateAction{}
+			err = action.Run(execArgs)
+			break
+		}
+	case "destroy":
+		{
+			action := actions.DestroyAction{}
+			err = action.Run(execArgs)
+			break
+		}
 	case "start":
 		{
 			action := actions.StartAction{}
@@ -53,6 +67,11 @@ func main() {
 			action := actions.StatusAction{}
 			err = action.Run(execArgs)
 			break
+		}
+	case "edit":
+		{
+			action := actions.EditAction{}
+			err = action.Run(execArgs)
 		}
 	default:
 		{
