@@ -22,7 +22,7 @@ func (action *EditAction) Run(arguments []string) (err error) {
 	}
 	action.machineName = arguments[0]
 
-	fmt.Printf("[edit] editing machine '%s'...", action.machineName)
+	fmt.Printf("[edit] editing machine '%s'...\n", action.machineName)
 
 	machine = runtime.NewMachine(action.machineName)
 
@@ -64,9 +64,42 @@ func (action *EditAction) Run(arguments []string) (err error) {
 	if err != nil {
 		return err
 	}
+	_, err = procHandle.Wait()
+	if err != nil {
+		log.Printf("[edit] editor process failed: %s", err.Error())
+	}
 
-	procHandle.Wait()
+	/* Now ask the user whether to start the edited machine */
+	fmt.Printf("\033[34mqemuctl\033[0m: start edited machine '%s' (Y/n)? ", action.machineName)
 
-	log.Printf("[edit] action executed successfully")
+	answer := ""
+	readBytes := make([]byte, 32)
+	_, err = os.Stdin.Read(readBytes)
+	if err != nil {
+		answer = "N"
+	} else {
+		answer = string(readBytes[:1])
+	}
+
+	switch answer {
+	case "Y", "y":
+		{
+			// Start machine
+			startAction := StartAction{}
+			err = startAction.Run([]string{action.machineName})
+		}
+	case "N", "n":
+		{
+			fmt.Println("No problem.")
+		}
+	default:
+		{
+			fmt.Printf("\033[33mwarning\033[0m: unknown answer '%s'\n", answer)
+		}
+	}
+
+	if err == nil {
+		log.Printf("[edit] action executed successfully")
+	}
 	return nil
 }
