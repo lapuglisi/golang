@@ -73,7 +73,6 @@ func (monitor *QemuMonitor) GetMonitorSpec() string {
 
 func (monitor *QemuMonitor) GetControlSocket() (unix net.Conn, err error) {
 	var qmpCommand QmpBasicCommand
-	var socketData []byte
 
 	log.Printf("[InitializeSocket] opening socket '%s'\n", monitor.GetUnixSocketPath())
 	{
@@ -92,112 +91,40 @@ func (monitor *QemuMonitor) GetControlSocket() (unix net.Conn, err error) {
 	}
 
 	log.Printf("[initialize] enabling QMP capabilities")
-	{
-		qmpCommand.Execute = QmpCapabilitiesCommand
-		socketData, err = qmpCommand.GetJsonBytes()
-		if err != nil {
-			return nil, err
-		}
-
-		nBytes, err := unix.Write(socketData)
-		if err != nil || nBytes == 0 {
-			return nil, err
-		}
-
-		result := QmpBasicResult{}
-		err = monitor.ReadQmpResult(unix, &result)
-		if err != nil {
-			return nil, err
-		}
+	qmpCommand.Command = QmpCapabilitiesCommand
+	_, err = qmpCommand.Execute(unix)
+	if err != nil {
+		return nil, err
 	}
 
 	log.Printf("[InitializeSocket] socket initialized")
 	return unix, nil
 }
 
-func (monitor *QemuMonitor) ReadQmpResult(unix net.Conn, out interface{}) (err error) {
-	const BufferSize = 1024
-
-	var dataBytes []byte = make([]byte, 0)
-	var buffer []byte = make([]byte, BufferSize)
-	var nBytes int = 0
-
-	dataBytes = make([]byte, 0)
-	for nBytes, err = unix.Read(buffer); err == nil && nBytes > 0; {
-		dataBytes = append(dataBytes, buffer[:nBytes]...)
-		if nBytes < BufferSize {
-			break
-		}
-	}
-	if err != nil {
-		return err
-	}
-
-	/* Now that we have dataBytes, Unmarshal it to QmpHeader */
-	err = json.Unmarshal(dataBytes, out)
-	if err != nil {
-		return fmt.Errorf("[ReadQmpResult] json error: %s", err.Error())
-	}
-
-	return nil
-}
-
-func (monitor *QemuMonitor) QueryStatus(result *QmpQueryStatusResult) (err error) {
-	const BufferSize int = 512
+func (monitor *QemuMonitor) QueryStatus() (result *QmpQueryStatusResult, err error) {
 	var unix net.Conn
-	var buffer []byte = make([]byte, BufferSize)
-	var socketData []byte
+	var qmpCommand QmpCommandQueryStatus
 
 	/* Initialize socket */
 	log.Printf("[QueryStatus] initializing socket\n")
 	unix, err = monitor.GetControlSocket()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	/* Create QueryStatus command and send it */
 	log.Printf("[QueryStatus] create query-status command\n")
-	qmpCommand := &QmpBasicCommand{
-		Execute: QmpQueryStatusCommand,
-	}
-	socketData, err = qmpCommand.GetJsonBytes()
+	result, err = qmpCommand.Execute(unix)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	log.Printf("[QueryStatus] sending query-status command")
-	_, err = unix.Write(socketData)
-	if err != nil {
-		log.Printf("[QueryStatus] error sending command: %s\n", err.Error())
-		return err
-	}
-
-	/* Now parse command result into result */
-	log.Printf("[QueryStatus] reading command response")
-	socketData = make([]byte, 0)
-	for nBytes, err := unix.Read(buffer); err == nil && nBytes > 0; {
-		socketData = append(socketData, buffer[:nBytes]...)
-		if nBytes < BufferSize {
-			break
-		}
-	}
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[QueryStatus] socketData is '%s'", string(socketData))
-
-	/* Unmarshal socketData into result */
-	return json.Unmarshal(socketData, &result)
+	return result, nil
 }
 
 func (monitor *QemuMonitor) SendShutdownCommand() (err error) {
 	var unix net.Conn
 	var shutdownCommand QmpBasicCommand
-	var qmpResult QmpBasicResult
-
-	var socketData []byte
-	var nBytes int
 
 	log.Printf("[SendShutdownCommand] initializing socket")
 	unix, err = monitor.GetControlSocket()
@@ -207,30 +134,19 @@ func (monitor *QemuMonitor) SendShutdownCommand() (err error) {
 
 	log.Printf("[SendShutdownCommand] sending shutdown command")
 	shutdownCommand = QmpBasicCommand{
-		Execute: "system_powerdown",
+		Command: QmpSystemPowerdownCommand,
 	}
-
-	socketData, err = shutdownCommand.GetJsonBytes()
+	_, err = shutdownCommand.Execute(unix)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[SendShutdownCommand] unix is %v\n", unix)
-	nBytes, err = unix.Write(socketData)
-	if err != nil || nBytes == 0 {
-		log.Printf("[SendShutdownCommand] could not write to socket: %s\n", err.Error())
-		return err
-	} else {
-		log.Printf("[SendShutdownCommand] wrote %d bytes to socket\n", nBytes)
+	/* Now read incoming events */
+	log.Printf("[SendShutdownCommand] reading incoming events")
+	qmpEvent := QmpEventResult{}
+	for qmpEvent.ReadEvent(unix) {
+		log.Printf("[SendShutdownCommand] event received: %v", qmpEvent)
 	}
-
-	/* Now read QMP results */
-	err = monitor.ReadQmpResult(unix, &qmpResult)
-	if err != nil {
-		log.Printf("could not read QMP result: %s\n", err.Error())
-	}
-
-	log.Printf("QmpBasicResult: %v\n", qmpResult)
 
 	return unix.Close()
 }

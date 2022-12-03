@@ -62,6 +62,14 @@ func (m *Machine) Exists() bool {
 	return fileInfo.IsDir()
 }
 
+func (m *Machine) Destroy() bool {
+	log.Printf("qemuctl: destroying machine %s\n", m.Name)
+
+	err := os.RemoveAll(m.RuntimeDirectory)
+
+	return err == nil
+}
+
 func (m *Machine) IsStarted() bool {
 	return (strings.Compare(MachineStatusStarted, m.Status) == 0)
 }

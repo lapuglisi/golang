@@ -29,14 +29,21 @@ func (action *StopAction) Run(arguments []string) (err error) {
 	machine = runtime.NewMachine(action.machineName)
 	qemuMonitor := qemuctl_qemu.NewQemuMonitor(machine)
 
+	fmt.Printf("[qemuctl] Stopping machine '%s'...", action.machineName)
+
 	err = qemuMonitor.SendShutdownCommand()
 	if err != nil {
+		fmt.Printf("\033[33m error!\033[0m\n")
 		machine.UpdateStatus(runtime.MachineStatusDegraded)
 		return err
 	}
 
 	// Now, update machine status
-	machine.UpdateStatus(runtime.MachineStatusStopped)
+	if machine.Destroy() {
+		fmt.Printf("\033[32m ok!\033[0m\n")
+	} else {
+		fmt.Printf("\033[32m error!\033[0m\n")
+	}
 
 	return nil
 }

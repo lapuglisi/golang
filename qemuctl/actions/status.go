@@ -14,7 +14,7 @@ type StatusAction struct {
 func (action *StatusAction) Run(arguments []string) (err error) {
 	var machine *runtime.Machine
 	var qemuMonitor *qemuctl_qemu.QemuMonitor
-	var machineStatus qemuctl_qemu.QmpQueryStatusResult
+	var machineStatus *qemuctl_qemu.QmpQueryStatusResult
 
 	if len(arguments) < 1 {
 		return fmt.Errorf("machine name is mandatory")
@@ -33,7 +33,7 @@ func (action *StatusAction) Run(arguments []string) (err error) {
 		return fmt.Errorf("invalid machine name")
 	}
 
-	err = qemuMonitor.QueryStatus(&machineStatus)
+	machineStatus, err = qemuMonitor.QueryStatus()
 	if err != nil {
 		return err
 	}
