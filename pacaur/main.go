@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	AURMainUrl  string = "https://aur.archlinux.org"
-	PackageName string = "pacaur"
+	AURMainUrl     string = "https://aur.archlinux.org"
+	PackageName    string = "pacaur"
+	TempDirPattern string = "pacaur-install-*"
 )
 
 func usage() {
@@ -68,6 +69,45 @@ func main() {
 
 }
 
+func executeMakepkg(packageDir string, args ...string) (err error) {
+	var cmdBin string
+	var aurCmd *exec.Cmd = nil
+
+	cmdBin, err = exec.LookPath("makepkg")
+	if err != nil {
+		return err
+	}
+
+	aurCmd = exec.Command(cmdBin, args...)
+	aurCmd.Dir = packageDir
+	aurCmd.Stdin = os.Stdin
+	aurCmd.Stderr = os.Stderr
+	aurCmd.Stdout = os.Stdout
+
+	return aurCmd.Run()
+}
+
+func executePacman(args ...string) (err error) {
+	var cmdBin string
+	var aurCmd *exec.Cmd = nil
+	var cmdArgs []string = make([]string, 1)
+
+	cmdBin, err = exec.LookPath("sudo")
+	if err != nil {
+		return err
+	}
+
+	cmdArgs[0] = "pacman"
+	cmdArgs = append(cmdArgs, args...)
+
+	aurCmd = exec.Command(cmdBin, cmdArgs...)
+	aurCmd.Stdin = os.Stdin
+	aurCmd.Stderr = os.Stderr
+	aurCmd.Stdout = os.Stdout
+
+	return aurCmd.Run()
+}
+
 func doAurSearch(search string) {
 	var result *aurjson.AURJson
 
@@ -96,7 +136,6 @@ func doAurInstall(aurPacks []string) {
 
 	for _, aurPack := range aurPacks {
 		fmt.Println()
-
 		fmt.Printf("[\033[33m%s\033[0m] Installing package \033[1m%s\033[0m\n", PackageName, aurPack)
 
 		result, err := aurjson.GetPackageInfo(aurPack)
@@ -131,21 +170,32 @@ func downloadAndInstall(packageInfo aurjson.AURSearchResult) (err error) {
 	var aurUrl string
 	var aurFileName string
 	var aurFileData []byte
+	var resp *http.Response
 
 	// -- Create temporary directory
 	fmt.Printf(" [\033[36mpacaur\033[0m] Creating temporary directory\n")
 
-	tempDir, err := os.MkdirTemp(os.TempDir(), "gaur-install-*")
+	tempDir, err := os.MkdirTemp(os.TempDir(), TempDirPattern)
 	if err != nil {
 		fmt.Printf("\033[31mERROR\033[0m: Could not create temporary directory.\n")
 		return err
+	}
+
+	// try to install package dependencies
+	pacmanArgs := []string{"-Sy", "--noconfirm", "--needed"}
+	pacmanArgs = append(pacmanArgs, packageInfo.Depends...)
+	err = executePacman(pacmanArgs...)
+
+	if err != nil {
+		fmt.Printf("\033[31mERROR\033[0m: Could not install dependencies of '%s' (%s)\n", packageInfo.PackageBase, err.Error())
+		goto cleanup
 	}
 
 	// -- Download package into tempDir
 	aurUrl = fmt.Sprintf("%s%s", AURMainUrl, packageInfo.URLPath)
 	fmt.Printf(" [\033[36mpacaur\033[0m] Downloading package from '%s'\n", aurUrl)
 
-	resp, err := http.Get(aurUrl)
+	resp, err = http.Get(aurUrl)
 	if err != nil {
 		fmt.Printf("\033[31mERROR\033[0m: Could not download from '%s'\n", aurUrl)
 		goto cleanup
@@ -195,22 +245,14 @@ func downloadAndInstall(packageInfo aurjson.AURSearchResult) (err error) {
 	// -- Execute makepkg on the file and show no mercy
 	fmt.Printf(" [\033[32mpacaur\033[0m] Installing AUR package '\033[35m%s\033[0m' with 'makepkg'\n", packageInfo.Name)
 
-	cmdBin, err = exec.LookPath("makepkg")
-
-	aurCmd = exec.Command(cmdBin, "-sif", "--noconfirm")
-	aurCmd.Dir = fmt.Sprintf("%s/%s", tempDir, packageInfo.Name)
-	aurCmd.Stdin = os.Stdin
-	aurCmd.Stderr = os.Stderr
-	aurCmd.Stdout = os.Stdout
-
-	err = aurCmd.Run()
+	err = executeMakepkg(fmt.Sprintf("%s/%s", tempDir, packageInfo.Name), "-sif", "--noconfirm")
 	if err != nil {
 		fmt.Printf("\033[31mERROR\033[0m: Could not execute makepkg on '%s': %s\n", tempDir, err.Error())
 		goto cleanup
 	}
 
 cleanup:
-	// -- Everything went ok, remove temporary directory
+	// -- Time to remove temporary directory
 	fmt.Printf(" [\033[36mpacaur\033[0m] Removing temporary directory '%s'\n", tempDir)
 	err = os.RemoveAll(tempDir)
 	if err != nil {

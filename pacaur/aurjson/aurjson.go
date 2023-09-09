@@ -12,7 +12,7 @@ const (
 	AURPackageInfoURL string = "https://aur.archlinux.org/rpc/?v=5&type=info&arg[]=%s"
 )
 
-/// AURSearchResult is suave
+// / AURSearchResult is suave
 type AURSearchResult struct {
 	ID             int32    `json:"ID"`
 	Name           string   `json:"Name"`
@@ -34,7 +34,7 @@ type AURSearchResult struct {
 	Keywords       []string `json:"Keywords"`
 }
 
-/// AURJson is da hora
+// / AURJson is da hora
 type AURJson struct {
 	Version     int32             `json:"version"`
 	Type        string            `json:"type"`
